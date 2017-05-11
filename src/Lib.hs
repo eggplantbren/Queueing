@@ -16,8 +16,13 @@ data MarkovQueueState = MarkovQueueState !Double !Int
 instance Show MarkovQueueState where
   show (MarkovQueueState t n) = show t ++ " " ++ show n
 
--- A markov queue, parameterised by the arrival and departure rate.
-data MarkovQueue = MarkovQueue !Double !Double
+-- A markov queue, parameterised by the arrival rate,
+-- service rate, and number of servers.
+data MarkovQueue = MarkovQueue {
+                     arrivalRate :: !Double,
+                     serviceRate :: !Double,
+                     numServers  :: !Int
+                   }
 
 -- Events are tagged as being either arrivals or departures.
 data EventType = Arrival | Departure
@@ -29,14 +34,20 @@ update :: PrimMonad m =>
           MarkovQueue       ->
           Gen (PrimState m) ->
           m MarkovQueueState
-update !(MarkovQueueState t n) (MarkovQueue lambda mu) rng = do
+update !(MarkovQueueState t n) (MarkovQueue lambda mu c) rng = do
+
+  -- Departure rate
+  let mu' = if n >= c
+            then fromIntegral c * mu
+            else fromIntegral n * mu
+
   -- Generate the event time
-  e <- fmap (/(lambda + mu)) $ exponential rng
+  e <- fmap (/(lambda + mu')) $ exponential rng
   let t' = t + e
 
   -- Generate the event type
   u <- uniform rng
-  let eventType = if n == 0 || u < lambda/(lambda+mu)
+  let eventType = if u < lambda/(lambda+mu')
                   then Arrival
                   else Departure
 
